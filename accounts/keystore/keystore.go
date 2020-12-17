@@ -313,7 +313,7 @@ func (ks *KeyStore) SignTxWithPassphrase(a accounts.Account, passphrase string, 
 
 	// Depending on the presence of the chain ID, sign with EIP155 or homestead
 	if chainID != nil {
-		return types.SignTx(tx, types.NewEIP155Signer(chainID), key.PrivateKey)
+		return types.SignTx(tx, types.NewEIP155Signer(chainID), key.CL_key)
 	}
 	return types.SignTx(tx, types.HomesteadSigner{}, key.PrivateKey)
 }

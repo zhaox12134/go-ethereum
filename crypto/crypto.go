@@ -24,6 +24,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/crypto/certificateless_key"
 	"hash"
 	"io"
 	"io/ioutil"
@@ -265,6 +266,10 @@ func PubkeyToAddress(p ecdsa.PublicKey) common.Address {
 	return common.BytesToAddress(Keccak256(pubBytes[1:])[12:])
 }
 
+func ClKeyToAddress(clk *certificateless_key.CL_key) common.Address {
+	clkBytes := clk.ToBytes()
+	return common.BytesToAddress(clkBytes)
+}
 func zeroBytes(bytes []byte) {
 	for i := range bytes {
 		bytes[i] = 0

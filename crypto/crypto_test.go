@@ -19,7 +19,9 @@ package crypto
 import (
 	"bytes"
 	"crypto/ecdsa"
+	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"io/ioutil"
 	"math/big"
 	"os"
@@ -290,4 +292,12 @@ func TestPythonIntegration(t *testing.T) {
 
 	t.Logf("msg: %x, privkey: %s sig: %x\n", msg0, kh, sig0)
 	t.Logf("msg: %x, privkey: %s sig: %x\n", msg1, kh, sig1)
+}
+
+func TestRsa(t *testing.T) {
+	priv, err := rand.Prime(rand.Reader, 1024)
+	if err != nil {
+		fmt.Println("failed to generate key")
+	}
+	fmt.Println(priv.String())
 }

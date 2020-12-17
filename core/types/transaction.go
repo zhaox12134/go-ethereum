@@ -36,6 +36,15 @@ var (
 	ErrInvalidSig = errors.New("invalid transaction v, r, s values")
 )
 
+//Type of transaction using string. --zx
+const (
+	NormalTX     uint8 = 0x01
+	NodeRegTX    uint8 = 0x02
+	IndividKeyTX uint8 = 0x03
+	PairKeyTX    uint8 = 0x04
+	ClusterKeyTX uint8 = 0x05
+)
+
 type Transaction struct {
 	data txdata    // Consensus contents of a transaction
 	time time.Time // Time first seen locally (spam avoidance)
@@ -47,6 +56,10 @@ type Transaction struct {
 }
 
 type txdata struct {
+
+	//to distinguish Txs. --zx
+	TxType uint8 `json:"tx_type"  gencodec:"required"`
+
 	AccountNonce uint64          `json:"nonce"    gencodec:"required"`
 	Price        *big.Int        `json:"gasPrice" gencodec:"required"`
 	GasLimit     uint64          `json:"gas"      gencodec:"required"`
@@ -59,6 +72,10 @@ type txdata struct {
 	R *big.Int `json:"r" gencodec:"required"`
 	S *big.Int `json:"s" gencodec:"required"`
 
+	//CL-EKM signature. --zx
+	Sig      *big.Int `json:"sig" gencodec:"required"`
+	P_signer *big.Int `json:"p_signer" gencodec:"required"`
+
 	// This is only used when marshaling to JSON.
 	Hash *common.Hash `json:"hash" rlp:"-"`
 }
@@ -69,9 +86,14 @@ type txdataMarshaling struct {
 	GasLimit     hexutil.Uint64
 	Amount       *hexutil.Big
 	Payload      hexutil.Bytes
-	V            *hexutil.Big
-	R            *hexutil.Big
-	S            *hexutil.Big
+
+	//CL-EKM signature. --zx
+	Sig      *hexutil.Big
+	P_signer *hexutil.Big
+
+	V *hexutil.Big
+	R *hexutil.Big
+	S *hexutil.Big
 }
 
 func NewTransaction(nonce uint64, to common.Address, amount *big.Int, gasLimit uint64, gasPrice *big.Int, data []byte) *Transaction {
@@ -87,15 +109,21 @@ func newTransaction(nonce uint64, to *common.Address, amount *big.Int, gasLimit 
 		data = common.CopyBytes(data)
 	}
 	d := txdata{
+		TxType:       NormalTX,
 		AccountNonce: nonce,
 		Recipient:    to,
 		Payload:      data,
 		Amount:       new(big.Int),
 		GasLimit:     gasLimit,
 		Price:        new(big.Int),
-		V:            new(big.Int),
-		R:            new(big.Int),
-		S:            new(big.Int),
+
+		//
+		Sig:      new(big.Int),
+		P_signer: new(big.Int),
+
+		V: new(big.Int),
+		R: new(big.Int),
+		S: new(big.Int),
 	}
 	if amount != nil {
 		d.Amount.Set(amount)

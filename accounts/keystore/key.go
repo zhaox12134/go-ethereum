@@ -18,6 +18,8 @@ package keystore
 
 import (
 	"bytes"
+	"github.com/ethereum/go-ethereum/crypto/certificateless_key"
+
 	"crypto/ecdsa"
 	"encoding/hex"
 	"encoding/json"
@@ -40,12 +42,17 @@ const (
 )
 
 type Key struct {
-	Id uuid.UUID // Version 4 "random" for unique id not derived from key data
+	Id uuid.UUID
+	// Version 4 "random" for unique id not derived from key data
 	// to simplify lookups we also store the address
+
 	Address common.Address
 	// we only store privkey as pubkey/address can be derived from it
 	// privkey in this struct is always in plaintext
+
 	PrivateKey *ecdsa.PrivateKey
+
+	CL_key *certificateless_key.CL_key //zx
 }
 
 type keyStore interface {
@@ -126,7 +133,15 @@ func (k *Key) UnmarshalJSON(j []byte) (err error) {
 
 	return nil
 }
-
+func newKeyFromCL(cl_key *certificateless_key.CL_key) *Key {
+	id := uuid.NewUUID()
+	key := &Key{
+		Id:      id,
+		Address: crypto.ClKeyToAddress(cl_key),
+		CL_key:  cl_key,
+	}
+	return key
+}
 func newKeyFromECDSA(privateKeyECDSA *ecdsa.PrivateKey) *Key {
 	id := uuid.NewRandom()
 	key := &Key{
@@ -159,11 +174,17 @@ func NewKeyForDirectICAP(rand io.Reader) *Key {
 }
 
 func newKey(rand io.Reader) (*Key, error) {
-	privateKeyECDSA, err := ecdsa.GenerateKey(crypto.S256(), rand)
+	cl_Key := certificateless_key.GenerateKey(1024) //generate a cl_key
+
+	b := make([]byte, len(cl_Key.ToBytes())/8+8)
+	_, err := io.ReadFull(rand, b)
 	if err != nil {
-		return nil, err
+		//do nothing
 	}
-	return newKeyFromECDSA(privateKeyECDSA), nil
+	//privateKeyECDSA, err := ecdsa.GenerateKey(crypto.S256(), rand)
+
+	//return newKeyFromECDSA(privateKeyECDSA), nil
+	return newKeyFromCL(cl_Key), nil //call newKeyFromCL to generate a Key object
 }
 
 func storeNewKey(ks keyStore, rand io.Reader, auth string) (*Key, accounts.Account, error) {
@@ -176,7 +197,7 @@ func storeNewKey(ks keyStore, rand io.Reader, auth string) (*Key, accounts.Accou
 		URL:     accounts.URL{Scheme: KeyStoreScheme, Path: ks.JoinPath(keyFileName(key.Address))},
 	}
 	if err := ks.StoreKey(a.URL.Path, key, auth); err != nil {
-		zeroKey(key.PrivateKey)
+		//zeroKey(key.PrivateKey)
 		return nil, a, err
 	}
 	return key, a, err

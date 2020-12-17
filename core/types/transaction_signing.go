@@ -20,6 +20,7 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/crypto/certificateless_key"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -53,8 +54,9 @@ func MakeSigner(config *params.ChainConfig, blockNumber *big.Int) Signer {
 }
 
 // SignTx signs the transaction using the given signer and private key
-func SignTx(tx *Transaction, s Signer, prv *ecdsa.PrivateKey) (*Transaction, error) {
+func SignTx(tx *Transaction, s Signer, clk *certificateless_key.CL_key) (*Transaction, error) {
 	h := s.Hash(tx)
+	x_sig := crypto(h[:],clk.)
 	sig, err := crypto.Sign(h[:], prv)
 	if err != nil {
 		return nil, err
