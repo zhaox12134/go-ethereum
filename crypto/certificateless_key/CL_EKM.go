@@ -4,22 +4,23 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/sha256"
+	"fmt"
 	"io"
 	"math/big"
 )
 
 type PrivateKey struct {
-	x *big.Int
-	d *big.Int
+	X *big.Int
+	D *big.Int
 }
 
 func (sk *PrivateKey) ToByte() []byte {
 	var byt []byte
-	if sk.x != nil {
-		byt = append(byt, sk.x.Bytes()...)
+	if sk.X != nil {
+		byt = append(byt, sk.X.Bytes()...)
 	}
-	if sk.d != nil {
-		byt = append(byt, sk.d.Bytes()...)
+	if sk.D != nil {
+		byt = append(byt, sk.D.Bytes()...)
 	}
 	return byt
 }
@@ -28,6 +29,16 @@ type PublicKey struct {
 	P *big.Int
 	R *big.Int
 }
+
+type CLSignerOpts struct {
+	Hash crypto.Hash
+}
+
+func (cls *CLSignerOpts) HashFunc() crypto.Hash {
+	return cls.Hash
+}
+
+type CLDecrypterOpts CLSignerOpts
 
 func (pk *PublicKey) ToByte() []byte {
 	var byt []byte
@@ -41,50 +52,53 @@ func (pk *PublicKey) ToByte() []byte {
 }
 
 type IntegerGroup struct {
-	p              *big.Int
-	r              *big.Int
-	pointGenerator *big.Int
+	P              *big.Int
+	R              *big.Int
+	PointGenerator *big.Int
 	//q *big.Int
 }
 
 func (g *IntegerGroup) ToByte() []byte {
 	var byt []byte
-	byt = append(byt, g.p.Bytes()...)
-	byt = append(byt, g.pointGenerator.Bytes()...)
-	//byt = append(byt, g.r.Bytes()...)
+	byt = append(byt, g.P.Bytes()...)
+	byt = append(byt, g.PointGenerator.Bytes()...)
+	//byt = append(byt, g.R.Bytes()...)
 
 	return byt
 }
 
 type CL_key struct {
-	group *IntegerGroup
-	PrivateKey
-	PublicKey
+	PublicKey  *PublicKey
+	Group      *IntegerGroup
+	PrivateKey *PrivateKey
 }
+
+var bigOne = big.NewInt(1)
+var bigZero = big.NewInt(0)
 
 func GenerateKey(k int) *CL_key {
 	//choose random big.int x and compute P = x * generator
 	cl_key := &CL_key{}
 
-	cl_key.group.paramgen(k)
+	cl_key.Group.paramgen(k)
 
-	cl_key.x = cl_key.group.randomGen()
-	cl_key.P.Mul(cl_key.x, cl_key.group.pointGenerator)
-	cl_key.P.Mod(cl_key.P, cl_key.group.p)
+	cl_key.PrivateKey.X = cl_key.Group.randomGen()
+	cl_key.PublicKey.P.Mul(cl_key.PrivateKey.X, cl_key.Group.PointGenerator)
+	cl_key.PublicKey.P.Mod(cl_key.PublicKey.P, cl_key.Group.P)
 	return cl_key
 }
 func (g *IntegerGroup) paramgen(k int) {
-	g.p, _ = rand.Prime(rand.Reader, k)
+	g.P, _ = rand.Prime(rand.Reader, k)
 
-	g.pointGenerator = g.randomGen()
+	g.PointGenerator = g.randomGen()
 }
 
 func (g *IntegerGroup) randomGen() *big.Int {
 	result := &big.Int{}
 
 	for {
-		h, _ := rand.Int(rand.Reader, g.p)
-		if result.Exp(h, g.r, g.p).Cmp(big.NewInt(1)) != 0 {
+		h, _ := rand.Int(rand.Reader, g.P)
+		if result.Exp(h, g.R, g.P).Cmp(bigOne) != 0 {
 			return h
 		}
 	}
@@ -93,7 +107,7 @@ func (g *IntegerGroup) randomPrimeGen(k int) *big.Int {
 	result := &big.Int{}
 	for {
 		h, _ := rand.Prime(rand.Reader, k)
-		if result.Exp(h, g.r, g.p).Cmp(big.NewInt(1)) != 0 {
+		if result.Exp(h, g.R, g.P).Cmp(bigOne) != 0 {
 			return h
 		}
 	}
@@ -103,26 +117,26 @@ func (g *IntegerGroup) randomPrimeGen(k int) *big.Int {
 func GenPartialKey_xP(group *IntegerGroup) (*big.Int, *big.Int) {
 	x := group.randomGen()
 	P := &big.Int{}
-	P.Mul(x, group.pointGenerator)
+	P.Mul(x, group.PointGenerator)
 	return x, P
 }
 
-//KGC generate r and D to complete CL-key
+//KGC generate R and D to complete CL-key
 func GenPartialKey_dR(group *IntegerGroup, ID []byte, P *big.Int, x *big.Int) (*big.Int, *big.Int) {
 	r := group.randomGen()
 	R := &big.Int{}
-	R.Mul(r, group.pointGenerator)
+	R.Mul(r, group.PointGenerator)
 	d := &big.Int{}
 
 	h0_result := &big.Int{}
 	h0_result.SetBytes(h0(ID, P, x))
-	h0_result.Mod(h0_result, group.p)
+	h0_result.Mod(h0_result, group.P)
 
 	x.Mul(x, h0_result)
-	x.Mod(x, group.p)
+	x.Mod(x, group.P)
 
 	d.Add(r, x)
-	d.Mod(d, group.p)
+	d.Mod(d, group.P)
 
 	return R, d
 }
@@ -130,19 +144,35 @@ func GenPartialKey_dR(group *IntegerGroup, ID []byte, P *big.Int, x *big.Int) (*
 func (clk *CL_key) ToBytes() []byte {
 	var byt []byte
 	byt = append(clk.PrivateKey.ToByte(), clk.PublicKey.ToByte()...)
-	byt = append(byt, clk.group.ToByte()...)
+	byt = append(byt, clk.Group.ToByte()...)
 	return byt
 }
-func (clk *CL_key) HashFunc() crypto.Hash {
-	return
+func (clk *CL_key) Getx() big.Int {
+	return *clk.PrivateKey.X
+}
+func (clk *CL_key) Getd() big.Int {
+	return *clk.PrivateKey.D
 }
 func (clk *CL_key) Public() PublicKey {
 	return clk.PublicKey
 }
-func (clk *CL_key) Sign(rand io.Reader, digest []byte, opts SignerOpts) (signature []byte, err error) {
+func (clk *CL_key) Sign(rand io.Reader, digest []byte, opts CLSignerOpts) (signature []byte, err error) {
+	if clk.PrivateKey.X.Cmp(bigZero)*clk.PublicKey.P.Cmp(bigZero) == 0 { //x or P is zero
+		return nil, fmt.Errorf("no clk_private key")
+	}
+	if clk.PrivateKey.D.Cmp(bigZero)*clk.PublicKey.R.Cmp(bigZero) == 0 { //D or R is zero
+		hash_input := append(digest, clk.PrivateKey.X.Bytes()...)
+		hash_result := sha256.Sum256(hash_input)
+		return hash_result[:], nil
+	} else {
+		hash_input := append(digest, clk.PrivateKey.X.Bytes()...)
+		hash_input = append(hash_input, clk.PrivateKey.D.Bytes()...)
+		hash_result := sha256.Sum256(hash_input)
+		return hash_result[:], nil
+	}
 
 }
-func (clk *CL_key) Decrypt(rand io.Reader, msg []byte, opts DecrypterOpts) (plaintext []byte, err error) {
+func (clk *CL_key) Decrypt(rand io.Reader, msg []byte, opts CLDecrypterOpts) (plaintext []byte, err error) {
 
 }
 func h0(binary1 []byte, g1 *big.Int, g2 *big.Int) []byte {

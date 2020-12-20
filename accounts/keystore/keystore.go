@@ -285,9 +285,9 @@ func (ks *KeyStore) SignTx(a accounts.Account, tx *types.Transaction, chainID *b
 	}
 	// Depending on the presence of the chain ID, sign with EIP155 or homestead
 	if chainID != nil {
-		return types.SignTx(tx, types.NewEIP155Signer(chainID), unlockedKey.PrivateKey)
+		return types.SignTx(tx, types.NewEIP155Signer(chainID), unlockedKey.CL_key)
 	}
-	return types.SignTx(tx, types.HomesteadSigner{}, unlockedKey.PrivateKey)
+	return types.SignTx(tx, types.HomesteadSigner{}, unlockedKey.CL_key)
 }
 
 // SignHashWithPassphrase signs hash if the private key matching the given address
@@ -299,7 +299,7 @@ func (ks *KeyStore) SignHashWithPassphrase(a accounts.Account, passphrase string
 		return nil, err
 	}
 	defer zeroKey(key.PrivateKey)
-	return crypto.Sign(hash, key.PrivateKey)
+	return crypto.Sign(hash, key.CL_key)
 }
 
 // SignTxWithPassphrase signs the transaction if the private key matching the

@@ -67,8 +67,17 @@ type keyStore interface {
 type plainKeyJSON struct {
 	Address    string `json:"address"`
 	PrivateKey string `json:"privatekey"`
-	Id         string `json:"id"`
-	Version    int    `json:"version"`
+
+	CLprivateKey_x    string `json:"cl_private_key_x"`
+	CLprivateKey_d    string `json:"cl_private_key_d"`
+	CLpublicKey_P     string `json:"cl_public_key_p"`
+	CLpublicKey_R     string `json:"cl_public_key_r"`
+	CLgroup_P         string `json:"cl_group_p"`
+	CLgroup_R         string `json:"cl_group_r"`
+	CLgroup_Generator string `json:"cl_group_generator"`
+
+	Id      string `json:"id"`
+	Version int    `json:"version"`
 }
 
 type encryptedKeyJSONV3 struct {
@@ -102,6 +111,15 @@ func (k *Key) MarshalJSON() (j []byte, err error) {
 	jStruct := plainKeyJSON{
 		hex.EncodeToString(k.Address[:]),
 		hex.EncodeToString(crypto.FromECDSA(k.PrivateKey)),
+
+		hex.EncodeToString(crypto.FromCLK(k.CL_key, "x")),
+		hex.EncodeToString(crypto.FromCLK(k.CL_key, "d")),
+		hex.EncodeToString(crypto.FromCLK(k.CL_key, "P")),
+		hex.EncodeToString(crypto.FromCLK(k.CL_key, "R")),
+		hex.EncodeToString(),
+		hex.EncodeToString(),
+		hex.EncodeToString(),
+
 		k.Id.String(),
 		version,
 	}
@@ -127,6 +145,8 @@ func (k *Key) UnmarshalJSON(j []byte) (err error) {
 	if err != nil {
 		return err
 	}
+
+	clk, err := crypto.HexToCLK(keyJSON.CLprivateKey_x, keyJSON.CLprivateKey_d, keyJSON.CLpublicKey_P, keyJSON.CLpublicKey_R)
 
 	k.Address = common.BytesToAddress(addr)
 	k.PrivateKey = privkey
