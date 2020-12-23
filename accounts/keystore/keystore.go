@@ -270,7 +270,10 @@ func (ks *KeyStore) SignHash(a accounts.Account, hash []byte) ([]byte, error) {
 		return nil, ErrLocked
 	}
 	// Sign the hash using plain ECDSA operations
-	return crypto.Sign(hash, unlockedKey.PrivateKey)
+	//return crypto.Sign(hash, unlockedKey.PrivateKey)
+	sig_x, _ := crypto.Sign_x(hash, unlockedKey.CL_key)
+	sig_d, _ := crypto.Sign_d(hash, unlockedKey.CL_key)
+	return append(sig_x, sig_d...), nil
 }
 
 // SignTx signs the given transaction with the requested account.
@@ -315,7 +318,7 @@ func (ks *KeyStore) SignTxWithPassphrase(a accounts.Account, passphrase string, 
 	if chainID != nil {
 		return types.SignTx(tx, types.NewEIP155Signer(chainID), key.CL_key)
 	}
-	return types.SignTx(tx, types.HomesteadSigner{}, key.PrivateKey)
+	return types.SignTx(tx, types.HomesteadSigner{}, key.CL_key)
 }
 
 // Unlock unlocks the given account indefinitely.

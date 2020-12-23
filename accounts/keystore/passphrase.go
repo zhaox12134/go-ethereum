@@ -231,8 +231,10 @@ func DecryptKey(keyjson []byte, auth string) (*Key, error) {
 
 	return &Key{
 		Id:         keyId,
-		Address:    crypto.PubkeyToAddress(key.PublicKey),
+		//Address:    crypto.PubkeyToAddress(key.PublicKey),  //which address
+		Address:  crypto.ClKeyToAddress(key.),
 		PrivateKey: key,
+		CertificatelessKey :
 	}, nil
 }
 

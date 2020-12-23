@@ -73,8 +73,10 @@ type txdata struct {
 	S *big.Int `json:"s" gencodec:"required"`
 
 	//CL-EKM signature. --zx
-	Sig      *big.Int `json:"sig" gencodec:"required"`
-	P_signer *big.Int `json:"p_signer" gencodec:"required"`
+	Sig_x []byte   `json:"sig_x" gencodec:"required"`
+	Pk_P  *big.Int `json:"pk_p"  gencodec:"required"`
+	Sig_d []byte   `json:"sig_d" gencodec:"required"`
+	PK_R  *big.Int `json:"pk_r"  gencodec:"required"`
 
 	// This is only used when marshaling to JSON.
 	Hash *common.Hash `json:"hash" rlp:"-"`
@@ -88,8 +90,10 @@ type txdataMarshaling struct {
 	Payload      hexutil.Bytes
 
 	//CL-EKM signature. --zx
-	Sig      *hexutil.Big
-	P_signer *hexutil.Big
+	Sig_x hexutil.Bytes
+	Pk_P  *big.Int
+	Sig_d hexutil.Bytes
+	PK_R  *big.Int
 
 	V *hexutil.Big
 	R *hexutil.Big
@@ -116,14 +120,14 @@ func newTransaction(nonce uint64, to *common.Address, amount *big.Int, gasLimit 
 		Amount:       new(big.Int),
 		GasLimit:     gasLimit,
 		Price:        new(big.Int),
-
 		//
-		Sig:      new(big.Int),
-		P_signer: new(big.Int),
-
-		V: new(big.Int),
-		R: new(big.Int),
-		S: new(big.Int),
+		V:     new(big.Int),
+		R:     new(big.Int),
+		S:     new(big.Int),
+		Sig_x: []byte{},
+		Pk_P:  new(big.Int),
+		Sig_d: []byte{},
+		PK_R:  new(big.Int),
 	}
 	if amount != nil {
 		d.Amount.Set(amount)
@@ -275,16 +279,17 @@ func (tx *Transaction) AsMessage(s Signer) (Message, error) {
 
 // WithSignature returns a new transaction with the given signature.
 // This signature needs to be in the [R || S || V] format where V is 0 or 1.
-func (tx *Transaction) WithSignature(signer Signer, sig []byte) (*Transaction, error) {
-	r, s, v, err := signer.SignatureValues(tx, sig)
-	if err != nil {
-		return nil, err
-	}
+func (tx *Transaction) WithSignature(signer Signer, sig_x, sig_d []byte) (*Transaction, error) {
+	//r, s, v, err := signer.SignatureValues(tx, sig)
+	//if err != nil {
+	//	return nil, err
+	//}
 	cpy := &Transaction{
 		data: tx.data,
 		time: tx.time,
 	}
-	cpy.data.R, cpy.data.S, cpy.data.V = r, s, v
+	//cpy.data.R, cpy.data.S, cpy.data.V = r, s, v
+	cpy.data.Sig_x, cpy.data.Sig_d = sig_x, sig_d
 	return cpy, nil
 }
 

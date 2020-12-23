@@ -17,7 +17,6 @@
 package types
 
 import (
-	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/crypto/certificateless_key"
@@ -56,12 +55,13 @@ func MakeSigner(config *params.ChainConfig, blockNumber *big.Int) Signer {
 // SignTx signs the transaction using the given signer and private key
 func SignTx(tx *Transaction, s Signer, clk *certificateless_key.CL_key) (*Transaction, error) {
 	h := s.Hash(tx)
-	x_sig := crypto(h[:],clk.)
-	sig, err := crypto.Sign(h[:], prv)
+	x_sig, err := crypto.Sign_x(h[:], clk)
+	d_sig, err := crypto.Sign_d(h[:], clk)
+	//sig, err := crypto.Sign(h[:], prv)
 	if err != nil {
 		return nil, err
 	}
-	return tx.WithSignature(s, sig)
+	return tx.WithSignature(s, x_sig, d_sig)
 }
 
 // Sender returns the address derived from the signature (V, R, S) using secp256k1

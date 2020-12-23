@@ -25,6 +25,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/crypto/certificateless_key"
+
+	//"github.com/ethereum/go-ethereum/crypto/certificateless_key"
 	"hash"
 	"io"
 	"io/ioutil"
@@ -151,26 +153,6 @@ func FromECDSA(priv *ecdsa.PrivateKey) []byte {
 	}
 	return math.PaddedBigBytes(priv.D, priv.Params().BitSize/8)
 }
-func FromCLK(clk *certificateless_key.CL_key, key string) []byte {
-	if clk == nil {
-		return nil
-	}
-	switch key {
-	case "x":
-		x := clk.PrivateKey.X
-		return x.Bytes()
-	case "d":
-		d := clk.PrivateKey.D
-		return d.Bytes()
-	case "P":
-		P := clk.PublicKey.P
-		return P.Bytes()
-	case "R":
-		R := clk.PublicKey.R
-		return R.Bytes()
-	}
-	return nil
-}
 
 // UnmarshalPubkey converts bytes to a secp256k1 public key.
 func UnmarshalPubkey(pub []byte) (*ecdsa.PublicKey, error) {
@@ -198,53 +180,6 @@ func HexToECDSA(hexkey string) (*ecdsa.PrivateKey, error) {
 	}
 	return ToECDSA(b)
 }
-func HexToCLK(x, d, P, R, mod, r, generator string) (*certificateless_key.CL_key, error) {
-	byt_x, _ := hex.DecodeString(x)
-	byt_d, _ := hex.DecodeString(d)
-	byt_P, _ := hex.DecodeString(P)
-	byt_R, _ := hex.DecodeString(R)
-	byt_mod, _ := hex.DecodeString(mod)
-	byt_r, _ := hex.DecodeString(r)
-	byt_generator, _ := hex.DecodeString(generator)
-
-	priv_x := &big.Int{}
-	priv_x.SetBytes(byt_x)
-
-	priv_d := &big.Int{}
-	priv_d.SetBytes(byt_d)
-
-	pub_P := &big.Int{}
-	pub_P.SetBytes(byt_P)
-
-	pub_R := &big.Int{}
-	pub_R.SetBytes(byt_R)
-
-	group_mod := &big.Int{}
-	group_mod.SetBytes(byt_mod)
-
-	group_r := &big.Int{}
-	group_r.SetBytes(byt_r)
-
-	group_gen := &big.Int{}
-	group_gen.SetBytes(byt_generator)
-
-	ret := &certificateless_key.CL_key{
-		PrivateKey: &certificateless_key.PrivateKey{
-			priv_x,
-			priv_d,
-		},
-		PublicKey: &certificateless_key.PublicKey{
-			pub_P,
-			pub_R,
-		},
-		Group: &certificateless_key.IntegerGroup{
-			group_mod,
-			group_r,
-			group_gen,
-		},
-	}
-	return ret, nil
-}
 
 // LoadECDSA loads a secp256k1 private key from the given file.
 func LoadECDSA(file string) (*ecdsa.PrivateKey, error) {
@@ -267,6 +202,26 @@ func LoadECDSA(file string) (*ecdsa.PrivateKey, error) {
 	}
 
 	return HexToECDSA(string(buf))
+}
+func LoadCLK(file string) (*certificateless_key.CL_key, error) {
+	fd, err := os.Open(file)
+	if err != nil {
+		return nil, err
+	}
+	defer fd.Close()
+
+	r := bufio.NewReader(fd)
+	buf := []byte{}
+	n, err := readASCII(buf, r) //if buf is bytes slice of a clk's json file, i can translate it to a clk object -----zx
+	if err != nil {
+		return nil, err
+	} else if n != len(buf) {
+		return nil, fmt.Errorf("key file read fall")
+	}
+	if err := checkKeyFileEnd(r); err != nil {
+		return nil, err
+	}
+	return certificateless_key.GenerateCLKFromByte(buf), nil
 }
 
 // readASCII reads into 'buf', stopping when the buffer is full or
@@ -303,14 +258,22 @@ func checkKeyFileEnd(r *bufio.Reader) error {
 
 // SaveECDSA saves a secp256k1 private key to the given file with
 // restrictive permissions. The key data is saved hex-encoded.
+
 func SaveECDSA(file string, key *ecdsa.PrivateKey) error {
 	k := hex.EncodeToString(FromECDSA(key))
+	return ioutil.WriteFile(file, []byte(k), 0600)
+}
+func SaveCLK(file string, clk *certificateless_key.CL_key) error {
+	k := hex.EncodeToString(clk.ToBytes())
 	return ioutil.WriteFile(file, []byte(k), 0600)
 }
 
 // GenerateKey generates a new private key.
 func GenerateKey() (*ecdsa.PrivateKey, error) {
 	return ecdsa.GenerateKey(S256(), rand.Reader)
+}
+func GenerateCLKey() (*certificateless_key.CL_key, error) {
+	return certificateless_key.GenerateKey(), nil
 }
 
 // ValidateSignatureValues verifies whether the signature values are valid with

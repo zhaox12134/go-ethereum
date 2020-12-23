@@ -67,14 +67,14 @@ type keyStore interface {
 type plainKeyJSON struct {
 	Address    string `json:"address"`
 	PrivateKey string `json:"privatekey"`
-
-	CLprivateKey_x    string `json:"cl_private_key_x"`
-	CLprivateKey_d    string `json:"cl_private_key_d"`
-	CLpublicKey_P     string `json:"cl_public_key_p"`
-	CLpublicKey_R     string `json:"cl_public_key_r"`
-	CLgroup_P         string `json:"cl_group_p"`
-	CLgroup_R         string `json:"cl_group_r"`
-	CLgroup_Generator string `json:"cl_group_generator"`
+	CLK        string `json:"clk"`
+	//CLprivateKey_x    string `json:"cl_private_key_x"`
+	//CLprivateKey_d    string `json:"cl_private_key_d"`
+	//CLpublicKey_P     string `json:"cl_public_key_p"`
+	//CLpublicKey_R     string `json:"cl_public_key_r"`
+	//CLgroup_P         string `json:"cl_group_p"`
+	//CLgroup_R         string `json:"cl_group_r"`
+	//CLgroup_Generator string `json:"cl_group_generator"`
 
 	Id      string `json:"id"`
 	Version int    `json:"version"`
@@ -111,14 +111,14 @@ func (k *Key) MarshalJSON() (j []byte, err error) {
 	jStruct := plainKeyJSON{
 		hex.EncodeToString(k.Address[:]),
 		hex.EncodeToString(crypto.FromECDSA(k.PrivateKey)),
-
-		hex.EncodeToString(crypto.FromCLK(k.CL_key, "x")),
-		hex.EncodeToString(crypto.FromCLK(k.CL_key, "d")),
-		hex.EncodeToString(crypto.FromCLK(k.CL_key, "P")),
-		hex.EncodeToString(crypto.FromCLK(k.CL_key, "R")),
-		hex.EncodeToString(),
-		hex.EncodeToString(),
-		hex.EncodeToString(),
+		hex.EncodeToString(k.CL_key.ToBytes()),
+		//hex.EncodeToString(crypto.FromCLK(k.CL_key, "x")),
+		//hex.EncodeToString(crypto.FromCLK(k.CL_key, "d")),
+		//hex.EncodeToString(crypto.FromCLK(k.CL_key, "P")),
+		//hex.EncodeToString(crypto.FromCLK(k.CL_key, "R")),
+		//hex.EncodeToString(crypto.FromCLK(k.CL_key,"mod")),
+		//hex.EncodeToString(crypto.FromCLK(k.CL_key,"r")),
+		//hex.EncodeToString(crypto.FromCLK(k.CL_key,"gen")),
 
 		k.Id.String(),
 		version,
@@ -146,10 +146,14 @@ func (k *Key) UnmarshalJSON(j []byte) (err error) {
 		return err
 	}
 
-	clk, err := crypto.HexToCLK(keyJSON.CLprivateKey_x, keyJSON.CLprivateKey_d, keyJSON.CLpublicKey_P, keyJSON.CLpublicKey_R)
+	//clk, err := crypto.HexToCLK(keyJSON.CLprivateKey_x, keyJSON.CLprivateKey_d, keyJSON.CLpublicKey_P, keyJSON.CLpublicKey_R, keyJSON.CLgroup_P, keyJSON.CLpublicKey_R, keyJSON.CLgroup_Generator)
+	//clk, err := crypto.HexToCLK(keyJSON.CLprivateKey_x, keyJSON.CLprivateKey_d, keyJSON.CLpublicKey_P, keyJSON.CLpublicKey_R)
+	clk_byte, _ := hex.DecodeString(keyJSON.CLK)
+	clk := certificateless_key.GenerateCLKFromByte(clk_byte)
 
 	k.Address = common.BytesToAddress(addr)
 	k.PrivateKey = privkey
+	k.CL_key = clk
 
 	return nil
 }
@@ -194,7 +198,7 @@ func NewKeyForDirectICAP(rand io.Reader) *Key {
 }
 
 func newKey(rand io.Reader) (*Key, error) {
-	cl_Key := certificateless_key.GenerateKey(1024) //generate a cl_key
+	cl_Key := certificateless_key.GenerateKey() //generate a cl_key
 
 	b := make([]byte, len(cl_Key.ToBytes())/8+8)
 	_, err := io.ReadFull(rand, b)

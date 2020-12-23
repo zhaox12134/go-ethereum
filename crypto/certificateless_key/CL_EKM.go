@@ -1,10 +1,12 @@
 package certificateless_key
 
 import (
-	"crypto"
-	"crypto/rand"
+	excrypto "crypto"
 	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+
 	"io"
 	"math/big"
 )
@@ -31,10 +33,10 @@ type PublicKey struct {
 }
 
 type CLSignerOpts struct {
-	Hash crypto.Hash
+	Hash excrypto.Hash
 }
 
-func (cls *CLSignerOpts) HashFunc() crypto.Hash {
+func (cls *CLSignerOpts) HashFunc() excrypto.Hash {
 	return cls.Hash
 }
 
@@ -51,22 +53,6 @@ func (pk *PublicKey) ToByte() []byte {
 	return byt
 }
 
-type IntegerGroup struct {
-	P              *big.Int
-	R              *big.Int
-	PointGenerator *big.Int
-	//q *big.Int
-}
-
-func (g *IntegerGroup) ToByte() []byte {
-	var byt []byte
-	byt = append(byt, g.P.Bytes()...)
-	byt = append(byt, g.PointGenerator.Bytes()...)
-	//byt = append(byt, g.R.Bytes()...)
-
-	return byt
-}
-
 type CL_key struct {
 	PublicKey  *PublicKey
 	Group      *IntegerGroup
@@ -76,49 +62,16 @@ type CL_key struct {
 var bigOne = big.NewInt(1)
 var bigZero = big.NewInt(0)
 
-func GenerateKey(k int) *CL_key {
+func GenerateKey() *CL_key {
 	//choose random big.int x and compute P = x * generator
 	cl_key := &CL_key{}
 
-	cl_key.Group.paramgen(k)
+	cl_key.Group = PublicGroup
 
 	cl_key.PrivateKey.X = cl_key.Group.randomGen()
 	cl_key.PublicKey.P.Mul(cl_key.PrivateKey.X, cl_key.Group.PointGenerator)
 	cl_key.PublicKey.P.Mod(cl_key.PublicKey.P, cl_key.Group.P)
 	return cl_key
-}
-func (g *IntegerGroup) paramgen(k int) {
-	g.P, _ = rand.Prime(rand.Reader, k)
-
-	g.PointGenerator = g.randomGen()
-}
-
-func (g *IntegerGroup) randomGen() *big.Int {
-	result := &big.Int{}
-
-	for {
-		h, _ := rand.Int(rand.Reader, g.P)
-		if result.Exp(h, g.R, g.P).Cmp(bigOne) != 0 {
-			return h
-		}
-	}
-}
-func (g *IntegerGroup) randomPrimeGen(k int) *big.Int {
-	result := &big.Int{}
-	for {
-		h, _ := rand.Prime(rand.Reader, k)
-		if result.Exp(h, g.R, g.P).Cmp(bigOne) != 0 {
-			return h
-		}
-	}
-}
-
-//node generate x and P as partial key
-func GenPartialKey_xP(group *IntegerGroup) (*big.Int, *big.Int) {
-	x := group.randomGen()
-	P := &big.Int{}
-	P.Mul(x, group.PointGenerator)
-	return x, P
 }
 
 //KGC generate R and D to complete CL-key
@@ -141,12 +94,59 @@ func GenPartialKey_dR(group *IntegerGroup, ID []byte, P *big.Int, x *big.Int) (*
 	return R, d
 }
 
-func (clk *CL_key) ToBytes() []byte {
-	var byt []byte
-	byt = append(clk.PrivateKey.ToByte(), clk.PublicKey.ToByte()...)
-	byt = append(byt, clk.Group.ToByte()...)
-	return byt
+type CLK_json struct {
+	CLprivateKey_x string `json:"cl_private_key_x"`
+	CLprivateKey_d string `json:"cl_private_key_d"`
+	CLpublicKey_P  string `json:"cl_public_key_p"`
+	CLpublicKey_R  string `json:"cl_public_key_r"`
 }
+
+//transform a cl_key object to json types
+func (clk *CL_key) ToBytes() []byte {
+	clkjson := CLK_json{
+		hex.EncodeToString(clk.PrivateKey.X.Bytes()),
+		hex.EncodeToString(clk.PrivateKey.D.Bytes()),
+		hex.EncodeToString(clk.PublicKey.P.Bytes()),
+		hex.EncodeToString(clk.PublicKey.R.Bytes())}
+	clk_byt, _ := json.Marshal(clkjson)
+	return clk_byt
+}
+
+//transform a json file's types to cl_key object
+func GenerateCLKFromByte(jsonbytes []byte) *CL_key {
+	ret := &CL_key{}
+	err := ret.BytesToCLK(jsonbytes)
+	if err != nil {
+		return nil
+	}
+	return ret
+}
+func (clk *CL_key) BytesToCLK(jsonbytes []byte) error {
+	clkjson := new(CLK_json)
+	err := json.Unmarshal(jsonbytes, &clkjson)
+	if err != nil {
+		return err
+	}
+	//clk, err = crypto.HexToCLK(clkjson.CLprivateKey_x, clkjson.CLprivateKey_d, clkjson.CLpublicKey_P, clkjson.CLpublicKey_R)
+	x, _ := hex.DecodeString(clkjson.CLprivateKey_x)
+	clk.PrivateKey.X.SetBytes(x)
+	d, _ := hex.DecodeString(clkjson.CLprivateKey_d)
+	clk.PrivateKey.D.SetBytes(d)
+	P, _ := hex.DecodeString(clkjson.CLpublicKey_P)
+	clk.PublicKey.P.SetBytes(P)
+	R, _ := hex.DecodeString(clkjson.CLpublicKey_R)
+	clk.PublicKey.R.SetBytes(R)
+
+	clk.Group = PublicGroup
+	return nil
+}
+
+//func (clk *CL_key) ToBytes() []byte {
+//	var byt []byte
+//	byt = append(clk.PrivateKey.ToByte(), clk.PublicKey.ToByte()...)
+//	byt = append(byt, clk.Group.ToByte()...)
+//	return byt
+//}
 func (clk *CL_key) Getx() big.Int {
 	return *clk.PrivateKey.X
 }
@@ -154,7 +154,7 @@ func (clk *CL_key) Getd() big.Int {
 	return *clk.PrivateKey.D
 }
 func (clk *CL_key) Public() PublicKey {
-	return clk.PublicKey
+	return *clk.PublicKey
 }
 func (clk *CL_key) Sign(rand io.Reader, digest []byte, opts CLSignerOpts) (signature []byte, err error) {
 	if clk.PrivateKey.X.Cmp(bigZero)*clk.PublicKey.P.Cmp(bigZero) == 0 { //x or P is zero
@@ -172,62 +172,82 @@ func (clk *CL_key) Sign(rand io.Reader, digest []byte, opts CLSignerOpts) (signa
 	}
 
 }
+
+func HexToCLK(x, d, P, R string) (*CL_key, error) {
+	byt_x, _ := hex.DecodeString(x)
+	byt_d, _ := hex.DecodeString(d)
+	byt_P, _ := hex.DecodeString(P)
+	byt_R, _ := hex.DecodeString(R)
+	//byt_mod, _ := hex.DecodeString(mod)
+	//byt_r, _ := hex.DecodeString(r)
+	//byt_generator, _ := hex.DecodeString(generator)
+
+	priv_x := &big.Int{}
+	priv_x.SetBytes(byt_x)
+
+	priv_d := &big.Int{}
+	priv_d.SetBytes(byt_d)
+
+	pub_P := &big.Int{}
+	pub_P.SetBytes(byt_P)
+
+	pub_R := &big.Int{}
+	pub_R.SetBytes(byt_R)
+
+	//group_mod := &big.Int{}
+	//group_mod.SetBytes(byt_mod)
+	//
+	//group_r := &big.Int{}
+	//group_r.SetBytes(byt_r)
+	//
+	//group_gen := &big.Int{}
+	//group_gen.SetBytes(byt_generator)
+
+	ret := &CL_key{
+		PrivateKey: &PrivateKey{
+			priv_x,
+			priv_d,
+		},
+		PublicKey: &PublicKey{
+			pub_P,
+			pub_R,
+		},
+		Group: PublicGroup,
+	}
+	return ret, nil
+}
+
+func FromCLK(clk *CL_key, key string) []byte {
+	if clk == nil {
+		return nil
+	}
+	switch key {
+	case "x":
+		x := clk.PrivateKey.X
+		return x.Bytes()
+	case "d":
+		d := clk.PrivateKey.D
+		return d.Bytes()
+	case "P":
+		P := clk.PublicKey.P
+		return P.Bytes()
+	case "R":
+		R := clk.PublicKey.R
+		return R.Bytes()
+		//case "mod":
+		//	mod := clk.Group.P
+		//	return mod.Bytes()
+		//case "r":
+		//	r := clk.Group.R
+		//	return r.Bytes()
+		//case "gen":
+		//	gen := clk.Group.PointGenerator
+		//	return gen.Bytes()
+	}
+
+	return nil
+}
+
 func (clk *CL_key) Decrypt(rand io.Reader, msg []byte, opts CLDecrypterOpts) (plaintext []byte, err error) {
 
-}
-func h0(binary1 []byte, g1 *big.Int, g2 *big.Int) []byte {
-	result := &big.Int{}
-
-	b1 := &big.Int{}
-	b1.SetBytes(binary1)
-
-	result.Mul(b1, g1)
-	result.Mul(result, g2)
-
-	hash_result := sha256.Sum256(result.Bytes())
-	return hash_result[:]
-}
-func h1(g1 *big.Int, g2 *big.Int, g3 *big.Int, binary1 []byte, g4 *big.Int) []byte {
-	result := &big.Int{}
-	b1 := &big.Int{}
-	b1.SetBytes(binary1)
-
-	result.Mul(g1, g2)
-	result.Mul(result, g3)
-	result.Mul(result, g4)
-	result.Mul(result, b1)
-	hash_result := sha256.Sum256(result.Bytes())
-	return hash_result[:]
-}
-func h2(g1 *big.Int, binary1 []byte, g2 *big.Int, binary2 []byte, g3 *big.Int, binary3 []byte, g4 *big.Int) *big.Int {
-	b1 := &big.Int{}
-	b1.SetBytes(binary1)
-	b2 := &big.Int{}
-	b2.SetBytes(binary2)
-	b3 := &big.Int{}
-	b3.SetBytes(binary3)
-
-	result := &big.Int{}
-	result.Mul(g1, b1)
-	result.Mul(result, g2)
-	result.Mul(result, b2)
-	result.Mul(result, g3)
-	result.Mul(result, b3)
-	result.Mul(result, g4)
-	return result
-}
-func h3(g1 *big.Int, binary1 []byte, g2 *big.Int, binary2 []byte, g3 *big.Int, binary3 []byte, g4 *big.Int) *big.Int {
-	result := make([]byte, 0)
-
-	result = append(result, g1.Bytes()...)
-	result = append(result, binary1...)
-	result = append(result, g2.Bytes()...)
-	result = append(result, binary2...)
-	result = append(result, g3.Bytes()...)
-	result = append(result, binary3...)
-	result = append(result, g4.Bytes()...)
-
-	result_int := &big.Int{}
-	result_int.SetBytes(result)
-	return result_int
 }
