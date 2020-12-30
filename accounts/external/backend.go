@@ -42,13 +42,14 @@ func (eb *ExternalBackend) Wallets() []accounts.Wallet {
 
 func NewExternalBackend(endpoint string) (*ExternalBackend, error) {
 	signer, err := NewExternalSigner(endpoint)
+	_ = signer.Close()
 	if err != nil {
 		return nil, err
 	}
 	return &ExternalBackend{
-		signers: []accounts.Wallet{signer},
+		signers: nil, //[]accounts.Wallet{signer},
 	}, nil
-}
+} //zx
 
 func (eb *ExternalBackend) Subscribe(sink chan<- accounts.WalletEvent) event.Subscription {
 	return event.NewSubscription(func(quit <-chan struct{}) error {

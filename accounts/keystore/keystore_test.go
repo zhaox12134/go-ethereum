@@ -83,7 +83,7 @@ func TestSign(t *testing.T) {
 	if err := ks.Unlock(a1, ""); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ks.SignHash(accounts.Account{Address: a1.Address}, testSigData); err != nil {
+	if _, _, err := ks.SignHash(accounts.Account{Address: a1.Address}, testSigData); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -102,7 +102,7 @@ func TestSignWithPassphrase(t *testing.T) {
 		t.Fatal("expected account to be locked")
 	}
 
-	_, err = ks.SignHashWithPassphrase(acc, pass, testSigData)
+	_, _, err = ks.SignHashWithPassphrase(acc, pass, testSigData)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func TestSignWithPassphrase(t *testing.T) {
 		t.Fatal("expected account to be locked")
 	}
 
-	if _, err = ks.SignHashWithPassphrase(acc, "invalid passwd", testSigData); err == nil {
+	if _, _, err = ks.SignHashWithPassphrase(acc, "invalid passwd", testSigData); err == nil {
 		t.Fatal("expected SignHashWithPassphrase to fail with invalid password")
 	}
 }
@@ -127,7 +127,7 @@ func TestTimedUnlock(t *testing.T) {
 	}
 
 	// Signing without passphrase fails because account is locked
-	_, err = ks.SignHash(accounts.Account{Address: a1.Address}, testSigData)
+	_, _, err = ks.SignHash(accounts.Account{Address: a1.Address}, testSigData)
 	if err != ErrLocked {
 		t.Fatal("Signing should've failed with ErrLocked before unlocking, got ", err)
 	}
@@ -138,14 +138,14 @@ func TestTimedUnlock(t *testing.T) {
 	}
 
 	// Signing without passphrase works because account is temp unlocked
-	_, err = ks.SignHash(accounts.Account{Address: a1.Address}, testSigData)
+	_, _, err = ks.SignHash(accounts.Account{Address: a1.Address}, testSigData)
 	if err != nil {
 		t.Fatal("Signing shouldn't return an error after unlocking, got ", err)
 	}
 
 	// Signing fails again after automatic locking
 	time.Sleep(250 * time.Millisecond)
-	_, err = ks.SignHash(accounts.Account{Address: a1.Address}, testSigData)
+	_, _, err = ks.SignHash(accounts.Account{Address: a1.Address}, testSigData)
 	if err != ErrLocked {
 		t.Fatal("Signing should've failed with ErrLocked timeout expired, got ", err)
 	}
@@ -167,7 +167,7 @@ func TestOverrideUnlock(t *testing.T) {
 	}
 
 	// Signing without passphrase works because account is temp unlocked
-	_, err = ks.SignHash(accounts.Account{Address: a1.Address}, testSigData)
+	_, _, err = ks.SignHash(accounts.Account{Address: a1.Address}, testSigData)
 	if err != nil {
 		t.Fatal("Signing shouldn't return an error after unlocking, got ", err)
 	}
@@ -178,14 +178,14 @@ func TestOverrideUnlock(t *testing.T) {
 	}
 
 	// Signing without passphrase still works because account is temp unlocked
-	_, err = ks.SignHash(accounts.Account{Address: a1.Address}, testSigData)
+	_, _, err = ks.SignHash(accounts.Account{Address: a1.Address}, testSigData)
 	if err != nil {
 		t.Fatal("Signing shouldn't return an error after unlocking, got ", err)
 	}
 
 	// Signing fails again after automatic locking
 	time.Sleep(250 * time.Millisecond)
-	_, err = ks.SignHash(accounts.Account{Address: a1.Address}, testSigData)
+	_, _, err = ks.SignHash(accounts.Account{Address: a1.Address}, testSigData)
 	if err != ErrLocked {
 		t.Fatal("Signing should've failed with ErrLocked timeout expired, got ", err)
 	}
@@ -207,7 +207,7 @@ func TestSignRace(t *testing.T) {
 	}
 	end := time.Now().Add(500 * time.Millisecond)
 	for time.Now().Before(end) {
-		if _, err := ks.SignHash(accounts.Account{Address: a1.Address}, testSigData); err == ErrLocked {
+		if _, _, err := ks.SignHash(accounts.Account{Address: a1.Address}, testSigData); err == ErrLocked {
 			return
 		} else if err != nil {
 			t.Errorf("Sign error: %v", err)

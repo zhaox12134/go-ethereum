@@ -21,11 +21,8 @@ package crypto
 import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
-	"crypto/sha256"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common/math"
-	"github.com/ethereum/go-ethereum/crypto/certificateless_key"
-
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 )
 
@@ -61,27 +58,28 @@ func Sign(digestHash []byte, prv *ecdsa.PrivateKey) (sig []byte, err error) {
 	defer zeroBytes(seckey)
 	return secp256k1.Sign(digestHash, seckey)
 }
-func Sign_x(digestHash []byte, clk *certificateless_key.CL_key) (sig []byte, err error) {
-	if len(digestHash) != DigestLength {
-		return nil, fmt.Errorf("hash is required to be exactly %d bytes (%d)", DigestLength, len(digestHash))
-	}
-	digest_key := append(digestHash, clk.PrivateKey.X.Bytes()...)
 
-	ret := sha256.Sum256(digest_key)
-	return ret[:], nil
-}
-func Sign_d(digestHash []byte, clk *certificateless_key.CL_key) (sig []byte, err error) {
-	if len(digestHash) != DigestLength {
-		return nil, fmt.Errorf("hash is required to be exactly %d bytes (%d)", DigestLength, len(digestHash))
-	}
-	if clk.PrivateKey.D == nil {
-		return nil, fmt.Errorf("clk.PrivateKey.D is empty")
-	}
-	digest_key := append(digestHash, clk.PrivateKey.D.Bytes()...)
-
-	ret := sha256.Sum256(digest_key)
-	return ret[:], nil
-}
+//func Sign_x(digestHash []byte, clk *certificateless_key.CL_key) (sig []byte, err error) {
+//	if len(digestHash) != DigestLength {
+//		return nil, fmt.Errorf("hash is required to be exactly %d bytes (%d)", DigestLength, len(digestHash))
+//	}
+//	digest_key := append(digestHash, clk.PrivateKey.X.Bytes()...)
+//
+//	ret := sha256.Sum256(digest_key)
+//	return ret[:], nil
+//}
+//func Sign_d(digestHash []byte, clk *certificateless_key.CL_key) (sig []byte, err error) {
+//	if len(digestHash) != DigestLength {
+//		return nil, fmt.Errorf("hash is required to be exactly %d bytes (%d)", DigestLength, len(digestHash))
+//	}
+//	if clk.PrivateKey.D == nil {
+//		return nil, fmt.Errorf("clk.PrivateKey.D is empty")
+//	}
+//	digest_key := append(digestHash, clk.PrivateKey.D.Bytes()...)
+//
+//	ret := sha256.Sum256(digest_key)
+//	return ret[:], nil
+//}
 
 // VerifySignature checks that the given public key created signature over digest.
 // The public key should be in compressed (33 bytes) or uncompressed (65 bytes) format.

@@ -65,9 +65,9 @@ type keyStore interface {
 }
 
 type plainKeyJSON struct {
-	Address    string `json:"address"`
-	PrivateKey string `json:"privatekey"`
-	CLK        string `json:"clk"`
+	Address string `json:"address"`
+	//PrivateKey string `json:"privatekey"`
+	CLK string `json:"clk"`
 	//CLprivateKey_x    string `json:"cl_private_key_x"`
 	//CLprivateKey_d    string `json:"cl_private_key_d"`
 	//CLpublicKey_P     string `json:"cl_public_key_p"`
@@ -110,16 +110,8 @@ type cipherparamsJSON struct {
 func (k *Key) MarshalJSON() (j []byte, err error) {
 	jStruct := plainKeyJSON{
 		hex.EncodeToString(k.Address[:]),
-		hex.EncodeToString(crypto.FromECDSA(k.PrivateKey)),
+		//hex.EncodeToString(crypto.FromECDSA(k.PrivateKey)),
 		hex.EncodeToString(k.CL_key.ToBytes()),
-		//hex.EncodeToString(crypto.FromCLK(k.CL_key, "x")),
-		//hex.EncodeToString(crypto.FromCLK(k.CL_key, "d")),
-		//hex.EncodeToString(crypto.FromCLK(k.CL_key, "P")),
-		//hex.EncodeToString(crypto.FromCLK(k.CL_key, "R")),
-		//hex.EncodeToString(crypto.FromCLK(k.CL_key,"mod")),
-		//hex.EncodeToString(crypto.FromCLK(k.CL_key,"r")),
-		//hex.EncodeToString(crypto.FromCLK(k.CL_key,"gen")),
-
 		k.Id.String(),
 		version,
 	}
@@ -141,7 +133,7 @@ func (k *Key) UnmarshalJSON(j []byte) (err error) {
 	if err != nil {
 		return err
 	}
-	privkey, err := crypto.HexToECDSA(keyJSON.PrivateKey)
+	//privkey, err := crypto.HexToECDSA(keyJSON.PrivateKey)
 	if err != nil {
 		return err
 	}
@@ -152,7 +144,7 @@ func (k *Key) UnmarshalJSON(j []byte) (err error) {
 	clk := certificateless_key.GenerateCLKFromByte(clk_byte)
 
 	k.Address = common.BytesToAddress(addr)
-	k.PrivateKey = privkey
+	//k.PrivateKey = privkey
 	k.CL_key = clk
 
 	return nil
@@ -161,9 +153,10 @@ func newKeyFromCL(cl_key *certificateless_key.CL_key) *Key {
 	id := uuid.NewUUID()
 	key := &Key{
 		Id:      id,
-		Address: crypto.ClKeyToAddress(cl_key),
+		Address: crypto.ClPubKeyToAddress(cl_key),
 		CL_key:  cl_key,
 	}
+	println("key.Address.String()", key.Address.String())
 	return key
 }
 func newKeyFromECDSA(privateKeyECDSA *ecdsa.PrivateKey) *Key {
@@ -200,11 +193,6 @@ func NewKeyForDirectICAP(rand io.Reader) *Key {
 func newKey(rand io.Reader) (*Key, error) {
 	cl_Key := certificateless_key.GenerateKey() //generate a cl_key
 
-	b := make([]byte, len(cl_Key.ToBytes())/8+8)
-	_, err := io.ReadFull(rand, b)
-	if err != nil {
-		//do nothing
-	}
 	//privateKeyECDSA, err := ecdsa.GenerateKey(crypto.S256(), rand)
 
 	//return newKeyFromECDSA(privateKeyECDSA), nil
@@ -214,14 +202,17 @@ func newKey(rand io.Reader) (*Key, error) {
 func storeNewKey(ks keyStore, rand io.Reader, auth string) (*Key, accounts.Account, error) {
 	key, err := newKey(rand)
 	if err != nil {
+		println("error! ")
 		return nil, accounts.Account{}, err
 	}
 	a := accounts.Account{
 		Address: key.Address,
 		URL:     accounts.URL{Scheme: KeyStoreScheme, Path: ks.JoinPath(keyFileName(key.Address))},
 	}
+	//println("key.Address:",key.Address.String())
 	if err := ks.StoreKey(a.URL.Path, key, auth); err != nil {
 		//zeroKey(key.PrivateKey)
+		println("error in  ks.StoreKey!")
 		return nil, a, err
 	}
 	return key, a, err

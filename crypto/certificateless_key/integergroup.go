@@ -27,10 +27,12 @@ func (g *IntegerGroup) paramgen(k int) {
 	g.PointGenerator = g.randomGen()
 }
 
-var PublicGroup = &IntegerGroup{}
+var PublicGroup = GeneratePublicGroup()
 
-func GeneratePublicGroup() {
-	PublicGroup.paramgen(1024)
+func GeneratePublicGroup() *IntegerGroup {
+	pg := &IntegerGroup{}
+	pg.paramgen(1024)
+	return pg
 }
 
 func (g *IntegerGroup) randomGen() *big.Int {
@@ -38,7 +40,7 @@ func (g *IntegerGroup) randomGen() *big.Int {
 
 	for {
 		h, _ := rand.Int(rand.Reader, g.P)
-		if (result.Exp(h, g.R, g.P).Cmp(bigOne) != 0) && (h.BitLen() > 512) {
+		if (result.Exp(h, g.R, g.P).Cmp(bigOne) != 0) && (len(h.Bytes()) == 128) { //make sure that the length of private key's byte is 128
 			return h
 		}
 	}

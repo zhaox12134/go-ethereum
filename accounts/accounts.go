@@ -110,13 +110,14 @@ type Wallet interface {
 	// about which fields or actions are needed. The user may retry by providing
 	// the needed details via SignDataWithPassphrase, or by other means (e.g. unlock
 	// the account in a keystore).
-	SignData(account Account, mimeType string, data []byte) ([]byte, error)
+	SignData(account Account, mimeType string, data []byte) ([]byte, []byte, error)
+	SignData_orginal(account Account, mimeType string, data []byte) ([]byte, error)
 
 	// SignDataWithPassphrase is identical to SignData, but also takes a password
 	// NOTE: there's an chance that an erroneous call might mistake the two strings, and
 	// supply password in the mimetype field, or vice versa. Thus, an implementation
 	// should never echo the mimetype or return the mimetype in the error-response
-	SignDataWithPassphrase(account Account, passphrase, mimeType string, data []byte) ([]byte, error)
+	SignDataWithPassphrase(account Account, passphrase, mimeType string, data []byte) ([]byte, []byte, error)
 
 	// SignText requests the wallet to sign the hash of a given piece of data, prefixed
 	// by the Ethereum prefix scheme
@@ -131,10 +132,10 @@ type Wallet interface {
 	// the account in a keystore).
 	//
 	// This method should return the signature in 'canonical' format, with v 0 or 1
-	SignText(account Account, text []byte) ([]byte, error)
+	SignText(account Account, text []byte) ([]byte, []byte, error)
 
 	// SignTextWithPassphrase is identical to Signtext, but also takes a password
-	SignTextWithPassphrase(account Account, passphrase string, hash []byte) ([]byte, error)
+	SignTextWithPassphrase(account Account, passphrase string, hash []byte) ([]byte, []byte, error)
 
 	// SignTx requests the wallet to sign the given transaction.
 	//

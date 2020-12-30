@@ -29,11 +29,9 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
-	"github.com/ethereum/go-ethereum/accounts/scwallet"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
-	"github.com/ethereum/go-ethereum/consensus/clique"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -44,7 +42,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/tyler-smith/go-bip39"
 )
 
 // PublicEthereumAPI provides an API to access Ethereum related information.
@@ -431,22 +428,22 @@ func (s *PrivateAccountAPI) SignTransaction(ctx context.Context, args SendTxArgs
 // The key used to calculate the signature is decrypted with the given password.
 //
 // https://github.com/ethereum/go-ethereum/wiki/Management-APIs#personal_sign
-func (s *PrivateAccountAPI) Sign(ctx context.Context, data hexutil.Bytes, addr common.Address, passwd string) (hexutil.Bytes, error) {
+func (s *PrivateAccountAPI) Sign(ctx context.Context, data hexutil.Bytes, addr common.Address, passwd string) (hexutil.Bytes, hexutil.Bytes, error) {
 	// Look up the wallet containing the requested signer
 	account := accounts.Account{Address: addr}
 
 	wallet, err := s.b.AccountManager().Find(account)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// Assemble sign the data with the wallet
-	signature, err := wallet.SignTextWithPassphrase(account, passwd, data)
+	signature1, signature2, err := wallet.SignTextWithPassphrase(account, passwd, data)
 	if err != nil {
 		log.Warn("Failed data sign attempt", "address", addr, "err", err)
-		return nil, err
+		return nil, nil, err
 	}
-	signature[crypto.RecoveryIDOffset] += 27 // Transform V from 0/1 to 27/28 according to the yellow paper
-	return signature, nil
+	//signature[crypto.RecoveryIDOffset] += 27 // Transform V from 0/1 to 27/28 according to the yellow paper
+	return signature1, signature2, nil
 }
 
 // EcRecover returns the address for the account that was used to create the signature.
@@ -482,46 +479,46 @@ func (s *PrivateAccountAPI) SignAndSendTransaction(ctx context.Context, args Sen
 }
 
 // InitializeWallet initializes a new wallet at the provided URL, by generating and returning a new private key.
-func (s *PrivateAccountAPI) InitializeWallet(ctx context.Context, url string) (string, error) {
-	wallet, err := s.am.Wallet(url)
-	if err != nil {
-		return "", err
-	}
-
-	entropy, err := bip39.NewEntropy(256)
-	if err != nil {
-		return "", err
-	}
-
-	mnemonic, err := bip39.NewMnemonic(entropy)
-	if err != nil {
-		return "", err
-	}
-
-	seed := bip39.NewSeed(mnemonic, "")
-
-	switch wallet := wallet.(type) {
-	case *scwallet.Wallet:
-		return mnemonic, wallet.Initialize(seed)
-	default:
-		return "", fmt.Errorf("specified wallet does not support initialization")
-	}
-}
+//func (s *PrivateAccountAPI) InitializeWallet(ctx context.Context, url string) (string, error) {
+//	wallet, err := s.am.Wallet(url)
+//	if err != nil {
+//		return "", err
+//	}
+//
+//	entropy, err := bip39.NewEntropy(256)
+//	if err != nil {
+//		return "", err
+//	}
+//
+//	mnemonic, err := bip39.NewMnemonic(entropy)
+//	if err != nil {
+//		return "", err
+//	}
+//
+//	seed := bip39.NewSeed(mnemonic, "")
+//
+//	switch wallet := wallet.(type) {
+//	case *scwallet.Wallet:
+//		return mnemonic, wallet.Initialize(seed)
+//	default:
+//		return "", fmt.Errorf("specified wallet does not support initialization")
+//	}
+//}
 
 // Unpair deletes a pairing between wallet and geth.
-func (s *PrivateAccountAPI) Unpair(ctx context.Context, url string, pin string) error {
-	wallet, err := s.am.Wallet(url)
-	if err != nil {
-		return err
-	}
-
-	switch wallet := wallet.(type) {
-	case *scwallet.Wallet:
-		return wallet.Unpair([]byte(pin))
-	default:
-		return fmt.Errorf("specified wallet does not support pairing")
-	}
-}
+//func (s *PrivateAccountAPI) Unpair(ctx context.Context, url string, pin string) error {
+//	wallet, err := s.am.Wallet(url)
+//	if err != nil {
+//		return err
+//	}
+//
+//	switch wallet := wallet.(type) {
+//	case *scwallet.Wallet:
+//		return wallet.Unpair([]byte(pin))
+//	default:
+//		return fmt.Errorf("specified wallet does not support pairing")
+//	}
+//}
 
 // PublicBlockChainAPI provides an API to access the Ethereum blockchain.
 // It offers only methods that operate on public data that is freely available to anyone.
@@ -1644,20 +1641,20 @@ func (s *PublicTransactionPoolAPI) SendRawTransaction(ctx context.Context, encod
 // The account associated with addr must be unlocked.
 //
 // https://github.com/ethereum/wiki/wiki/JSON-RPC#eth_sign
-func (s *PublicTransactionPoolAPI) Sign(addr common.Address, data hexutil.Bytes) (hexutil.Bytes, error) {
+func (s *PublicTransactionPoolAPI) Sign(addr common.Address, data hexutil.Bytes) (hexutil.Bytes, hexutil.Bytes, error) {
 	// Look up the wallet containing the requested signer
 	account := accounts.Account{Address: addr}
 
 	wallet, err := s.b.AccountManager().Find(account)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// Sign the requested hash with the wallet
-	signature, err := wallet.SignText(account, data)
-	if err == nil {
-		signature[64] += 27 // Transform V from 0/1 to 27/28 according to the yellow paper
-	}
-	return signature, err
+	signature1, signature2, err := wallet.SignText(account, data)
+	//if err == nil {
+	//	signature[64] += 27 // Transform V from 0/1 to 27/28 according to the yellow paper
+	//}
+	return signature1, signature2, err
 }
 
 // SignTransactionResult represents a RLP encoded signed transaction.
@@ -1811,39 +1808,40 @@ func (api *PublicDebugAPI) GetBlockRlp(ctx context.Context, number uint64) (stri
 //
 // This is a temporary method to debug the externalsigner integration,
 // TODO: Remove this method when the integration is mature
-func (api *PublicDebugAPI) TestSignCliqueBlock(ctx context.Context, address common.Address, number uint64) (common.Address, error) {
-	block, _ := api.b.BlockByNumber(ctx, rpc.BlockNumber(number))
-	if block == nil {
-		return common.Address{}, fmt.Errorf("block #%d not found", number)
-	}
-	header := block.Header()
-	header.Extra = make([]byte, 32+65)
-	encoded := clique.CliqueRLP(header)
-
-	// Look up the wallet containing the requested signer
-	account := accounts.Account{Address: address}
-	wallet, err := api.b.AccountManager().Find(account)
-	if err != nil {
-		return common.Address{}, err
-	}
-
-	signature, err := wallet.SignData(account, accounts.MimetypeClique, encoded)
-	if err != nil {
-		return common.Address{}, err
-	}
-	sealHash := clique.SealHash(header).Bytes()
-	log.Info("test signing of clique block",
-		"Sealhash", fmt.Sprintf("%x", sealHash),
-		"signature", fmt.Sprintf("%x", signature))
-	pubkey, err := crypto.Ecrecover(sealHash, signature)
-	if err != nil {
-		return common.Address{}, err
-	}
-	var signer common.Address
-	copy(signer[:], crypto.Keccak256(pubkey[1:])[12:])
-
-	return signer, nil
-}
+//func (api *PublicDebugAPI) TestSignCliqueBlock(ctx context.Context, address common.Address, number uint64) (common.Address, error) {
+//	block, _ := api.b.BlockByNumber(ctx, rpc.BlockNumber(number))
+//	if block == nil {
+//		return common.Address{}, fmt.Errorf("block #%d not found", number)
+//	}
+//	header := block.Header()
+//	header.Extra = make([]byte, 32+65)
+//	encoded := clique.CliqueRLP(header)
+//
+//	// Look up the wallet containing the requested signer
+//	account := accounts.Account{Address: address}
+//	wallet, err := api.b.AccountManager().Find(account)
+//	if err != nil {
+//		return common.Address{}, err
+//	}
+//
+//	signature1, signature2, err := wallet.SignData(account, accounts.MimetypeClique, encoded)
+//	if err != nil {
+//		return common.Address{}, err
+//	}
+//	sealHash := clique.SealHash(header).Bytes()
+//	log.Info("test signing of clique block",
+//		"Sealhash", fmt.Sprintf("%x", sealHash),
+//		"signature1", fmt.Sprintf("%x", signature1),
+//		"signature2", fmt.Sprintf("%x", signature2))
+//	pubkey, err := crypto.Ecrecover(sealHash, signature)
+//	if err != nil {
+//		return common.Address{}, err
+//	}
+//	var signer common.Address
+//	copy(signer[:], crypto.Keccak256(pubkey[1:])[12:])
+//
+//	return signer, nil
+//}
 
 // PrintBlock retrieves a block and returns its pretty printed form.
 func (api *PublicDebugAPI) PrintBlock(ctx context.Context, number uint64) (string, error) {

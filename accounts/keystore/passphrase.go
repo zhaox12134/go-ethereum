@@ -33,6 +33,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/ethereum/go-ethereum/crypto/certificateless_key"
 	"io"
 	"io/ioutil"
 	"os"
@@ -40,7 +41,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/pborman/uuid"
 	"golang.org/x/crypto/pbkdf2"
@@ -84,14 +84,17 @@ func (ks keyStorePassphrase) GetKey(addr common.Address, filename, auth string) 
 	// Load the key from the keystore and decrypt its contents
 	keyjson, err := ioutil.ReadFile(filename)
 	if err != nil {
+		println("(ks keyStorePassphrase) GetKey error 1")
 		return nil, err
 	}
 	key, err := DecryptKey(keyjson, auth)
 	if err != nil {
+		println("(ks keyStorePassphrase) GetKey error 2")
 		return nil, err
 	}
 	// Make sure we're really operating on the requested key (no swap attacks)
 	if key.Address != addr {
+		println("(ks keyStorePassphrase) GetKey error 3")
 		return nil, fmt.Errorf("key content mismatch: have account %x, want %x", key.Address, addr)
 	}
 	return key, nil
@@ -104,19 +107,23 @@ func StoreKey(dir, auth string, scryptN, scryptP int) (accounts.Account, error) 
 }
 
 func (ks keyStorePassphrase) StoreKey(filename string, key *Key, auth string) error {
+	//println("(ks keyStorePassphrase) StoreKey")
 	keyjson, err := EncryptKey(key, auth, ks.scryptN, ks.scryptP)
 	if err != nil {
+		println("(ks keyStorePassphrase) StoreKey error 1")
 		return err
 	}
 	// Write into temporary file
 	tmpName, err := writeTemporaryKeyFile(filename, keyjson)
 	if err != nil {
+		println("(ks keyStorePassphrase) StoreKey error 2")
 		return err
 	}
 	if !ks.skipKeyFileVerification {
 		// Verify that we can decrypt the file with the given password.
 		_, err = ks.GetKey(key.Address, tmpName, auth)
 		if err != nil {
+			println("(ks keyStorePassphrase) StoreKey error 3")
 			msg := "An error was encountered when saving and verifying the keystore file. \n" +
 				"This indicates that the keystore is corrupted. \n" +
 				"The corrupted file is stored at \n%v\n" +
@@ -124,6 +131,7 @@ func (ks keyStorePassphrase) StoreKey(filename string, key *Key, auth string) er
 				"https://github.com/ethereum/go-ethereum/issues." +
 				"The error was : %s"
 			//lint:ignore ST1005 This is a message for the user
+			//println(fmt.Errorf(msg, tmpName, err).Error())
 			return fmt.Errorf(msg, tmpName, err)
 		}
 	}
@@ -184,9 +192,11 @@ func EncryptDataV3(data, auth []byte, scryptN, scryptP int) (CryptoJSON, error) 
 // EncryptKey encrypts a key using the specified scrypt parameters into a json
 // blob that can be decrypted later on.
 func EncryptKey(key *Key, auth string, scryptN, scryptP int) ([]byte, error) {
-	keyBytes := math.PaddedBigBytes(key.PrivateKey.D, 32)
+	//keyBytes := math.PaddedBigBytes(key.PrivateKey.D, 32)
+	keyBytes := key.CL_key.ToBytes()
 	cryptoStruct, err := EncryptDataV3(keyBytes, []byte(auth), scryptN, scryptP)
 	if err != nil {
+		println("EncryptKey error 1")
 		return nil, err
 	}
 	encryptedKeyJSONV3 := encryptedKeyJSONV3{
@@ -227,14 +237,14 @@ func DecryptKey(keyjson []byte, auth string) (*Key, error) {
 	if err != nil {
 		return nil, err
 	}
-	key := crypto.ToECDSAUnsafe(keyBytes)
+	key := certificateless_key.GenerateCLKFromByte(keyBytes)
 
 	return &Key{
-		Id:         keyId,
+		Id: keyId,
 		//Address:    crypto.PubkeyToAddress(key.PublicKey),  //which address
-		Address:  crypto.ClKeyToAddress(key.),
-		PrivateKey: key,
-		CertificatelessKey :
+		Address: crypto.ClPubKeyToAddress(key),
+		//PrivateKey: key,
+		CL_key: key,
 	}, nil
 }
 

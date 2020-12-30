@@ -35,7 +35,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/event"
 )
 
@@ -260,20 +259,19 @@ func (ks *KeyStore) Delete(a accounts.Account, passphrase string) error {
 
 // SignHash calculates a ECDSA signature for the given hash. The produced
 // signature is in the [R || S || V] format where V is 0 or 1.
-func (ks *KeyStore) SignHash(a accounts.Account, hash []byte) ([]byte, error) {
+func (ks *KeyStore) SignHash(a accounts.Account, hash []byte) ([]byte, []byte, error) {
 	// Look up the key to sign with and abort if it cannot be found
 	ks.mu.RLock()
 	defer ks.mu.RUnlock()
 
 	unlockedKey, found := ks.unlocked[a.Address]
 	if !found {
-		return nil, ErrLocked
+		return nil, nil, ErrLocked
 	}
 	// Sign the hash using plain ECDSA operations
 	//return crypto.Sign(hash, unlockedKey.PrivateKey)
-	sig_x, _ := crypto.Sign_x(hash, unlockedKey.CL_key)
-	sig_d, _ := crypto.Sign_d(hash, unlockedKey.CL_key)
-	return append(sig_x, sig_d...), nil
+
+	return unlockedKey.CL_key.Sign(hash)
 }
 
 // SignTx signs the given transaction with the requested account.
@@ -296,13 +294,14 @@ func (ks *KeyStore) SignTx(a accounts.Account, tx *types.Transaction, chainID *b
 // SignHashWithPassphrase signs hash if the private key matching the given address
 // can be decrypted with the given passphrase. The produced signature is in the
 // [R || S || V] format where V is 0 or 1.
-func (ks *KeyStore) SignHashWithPassphrase(a accounts.Account, passphrase string, hash []byte) (signature []byte, err error) {
+func (ks *KeyStore) SignHashWithPassphrase(a accounts.Account, passphrase string, hash []byte) (signature_x []byte, signature_d []byte, err error) {
 	_, key, err := ks.getDecryptedKey(a, passphrase)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer zeroKey(key.PrivateKey)
-	return crypto.Sign(hash, key.CL_key)
+	//return crypto.Sign(hash, key.CL_key)
+	return key.CL_key.Sign(hash)
 }
 
 // SignTxWithPassphrase signs the transaction if the private key matching the

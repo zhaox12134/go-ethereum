@@ -21,6 +21,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -296,9 +297,12 @@ func PubkeyToAddress(p ecdsa.PublicKey) common.Address {
 	return common.BytesToAddress(Keccak256(pubBytes[1:])[12:])
 }
 
-func ClKeyToAddress(clk *certificateless_key.CL_key) common.Address {
-	clkBytes := clk.ToBytes()
-	return common.BytesToAddress(clkBytes)
+func ClPubKeyToAddress(clk *certificateless_key.CL_key) common.Address {
+	clkBytes := clk.PublicKey.ToByte()
+	clk_hash := sha256.Sum256(clkBytes)
+	//clk_hash_string := hex.EncodeToString(clk_hash[:])
+	//println("clk_hash_string", clk_hash_string)
+	return common.BytesToAddress(clk_hash[:])
 }
 func zeroBytes(bytes []byte) {
 	for i := range bytes {
